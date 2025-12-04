@@ -1,0 +1,191 @@
+# EventBus
+
+Internal event bus for decoupling domain logic across contexts.
+
+Uses Oban for reliable, async event processing. Each event is dispatched to all registered handlers via separate Oban jobs, allowing independent processing, retries, and prioritization.
+
+## Usage
+
+### 1. Define an event
+
+Events are structs defined in the context that publishes them:
+
+```elixir
+defmodule MyApp.Orders.Events.OrderCreated do
+  defstruct [:order_id, :customer_id, :total]
+end
+```
+
+### 2. Define a handler
+
+```elixir
+defmodule MyApp.Finances.EventHandler do
+  @behaviour EventBus.Handler
+
+  @impl EventBus.Handler
+  def handle_event(%MyApp.Orders.Events.OrderCreated{} = event) do
+    MyApp.Finances.create_invoice(event.order_id)
+    :ok
+  end
+end
+```
+
+### 3. Register handlers
+
+```elixir
+# config/event_handlers.exs
+%{
+  MyApp.Orders.Events.OrderCreated => [MyApp.Finances.EventHandler]
+}
+
+# config/runtime.exs
+{handlers, _} = Code.eval_file("config/event_handlers.exs")
+config :event_bus, :handlers, handlers
+```
+
+### 4. Configure Oban queue
+
+```elixir
+# config/config.exs
+config :my_app, Oban,
+  queues: [
+    # ... other queues ...
+    events: 20
+  ]
+```
+
+### 5. Publish events
+
+```elixir
+EventBus.publish(%MyApp.Orders.Events.OrderCreated{order_id: "123", customer_id: "456", total: 100})
+```
+
+## Handler options
+
+Handlers can customize Oban worker options:
+
+```elixir
+defmodule MyApp.Finances.EventHandler do
+  @behaviour EventBus.Handler
+
+  @impl EventBus.Handler
+  def handle_event(%MyApp.Orders.Events.OrderCreated{} = event) do
+    # ...
+    :ok
+  end
+
+  @impl EventBus.Handler
+  def oban_options do
+    [queue: :critical_events, priority: 0, max_attempts: 10]
+  end
+end
+```
+
+Available options: `:queue` (default: `:events`), `:priority` (0-9, lower is higher), `:max_attempts` (default: 5).
+
+## Return values
+
+- `:ok` or `{:ok, result}` - success
+- `{:error, reason}` - triggers Oban retry
+- raising an exception - triggers Oban retry
+
+## Testing
+
+### Setup
+
+```elixir
+# config/test.exs
+config :event_bus, :backend, EventBus.Backend.ProcessMailbox
+
+# test/support/data_case.ex
+defmodule MyApp.DataCase do
+  use ExUnit.CaseTemplate
+
+  using do
+    quote do
+      import EventBus.Testing
+    end
+  end
+
+  setup :setup_event_bus_testing
+end
+```
+
+### Unit test handlers directly
+
+```elixir
+alias MyApp.Orders.Events.OrderCreated
+
+assert :ok = MyApp.Finances.EventHandler.handle_event(%OrderCreated{order_id: "123"})
+```
+
+### Test event publishing with strict mode
+
+Use `set_event_bus_mode(:strict)` to enable assertion checking. Events published in strict mode must be asserted, otherwise the test fails in `on_exit`.
+
+```elixir
+test "completing call publishes event", ctx do
+  %{call: call} = produce(ctx, [:call])  # default mode, not checked
+
+  set_event_bus_mode(:strict)
+
+  Engagements.complete_call(call, %{duration: 60})
+
+  assert_event_published %CallCompleted{call_id: id}
+  assert id == call.id
+  # on_exit fails if any strict events left unasserted
+end
+```
+
+### Modes
+
+- `:default` - events sent to mailbox but not checked in on_exit (for seed factory noise)
+- `:strict` - events must be asserted, on_exit fails if any left unasserted
+- `:inline` - handlers execute synchronously (for integration tests)
+
+### Integration test with inline mode
+
+When you need handlers to actually execute:
+
+```elixir
+test "completing call creates invoice via handler", ctx do
+  %{call: call} = produce(ctx, [:call])
+
+  set_event_bus_mode(:inline)
+
+  Engagements.complete_call(call, %{duration: 60})
+
+  # handler already executed, check side effects
+  assert Finances.invoice_line_item_exists_for_call?(call.id)
+end
+```
+
+### Switching modes mid-test
+
+```elixir
+test "complex scenario", ctx do
+  %{expert: expert, project: project} = produce(ctx, [:expert, :project])
+
+  set_event_bus_mode(:strict)
+  {:ok, call} = Engagements.schedule_call(expert, project, params)
+  assert_event_published %CallScheduled{}
+
+  set_event_bus_mode(:default)  # verifies no unasserted strict events, then switches
+
+  # these events not checked
+  Engagements.add_participants(call, participants)
+
+  set_event_bus_mode(:strict)
+  Engagements.complete_call(call, %{duration: 60})
+  assert_event_published %CallCompleted{}
+end
+```
+
+### Inline backend for dev/seeds
+
+`EventBus.Backend.Inline` executes handlers synchronously - useful for development and seed scripts:
+
+```elixir
+# config/dev.exs
+config :event_bus, :backend, EventBus.Backend.Inline
+```
