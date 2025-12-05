@@ -11,6 +11,8 @@ defmodule EventBus.TestingTest do
     # Reset mode before each test
     Process.delete(:event_bus_mode)
 
+    original_handlers = Application.get_env(:event_bus, :handlers, %{})
+
     # Setup handlers for inline mode tests
     Application.put_env(:event_bus, :handlers, %{
       TestEvent => [TestHandler]
@@ -18,7 +20,7 @@ defmodule EventBus.TestingTest do
 
     on_exit(fn ->
       Process.delete(:event_bus_mode)
-      Application.delete_env(:event_bus, :handlers)
+      Application.put_env(:event_bus, :handlers, original_handlers)
     end)
 
     :ok

@@ -6,21 +6,10 @@ defmodule EventBusTest do
   alias EventBus.TestSupport.TestHandler
 
   setup do
-    original_handlers = Application.get_env(:event_bus, :handlers)
-    original_defaults = Application.get_env(:event_bus, :default_oban_options)
+    original_handlers = Application.get_env(:event_bus, :handlers, %{})
 
     on_exit(fn ->
-      if original_handlers do
-        Application.put_env(:event_bus, :handlers, original_handlers)
-      else
-        Application.delete_env(:event_bus, :handlers)
-      end
-
-      if original_defaults do
-        Application.put_env(:event_bus, :default_oban_options, original_defaults)
-      else
-        Application.delete_env(:event_bus, :default_oban_options)
-      end
+      Application.put_env(:event_bus, :handlers, original_handlers)
     end)
 
     :ok

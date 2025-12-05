@@ -54,7 +54,11 @@ defmodule EventBus do
     backend().publish(event)
   end
 
-  defp backend do
+  @doc """
+  Returns the currently configured backend module.
+  """
+  @spec backend() :: module()
+  def backend do
     Application.get_env(:event_bus, :backend, EventBus.Backend.Oban)
   end
 end

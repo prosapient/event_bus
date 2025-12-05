@@ -7,14 +7,10 @@ defmodule EventBus.RegistryTest do
   alias EventBus.TestSupport.TestHandler
 
   setup do
-    original_handlers = Application.get_env(:event_bus, :handlers)
+    original_handlers = Application.get_env(:event_bus, :handlers, %{})
 
     on_exit(fn ->
-      if original_handlers do
-        Application.put_env(:event_bus, :handlers, original_handlers)
-      else
-        Application.delete_env(:event_bus, :handlers)
-      end
+      Application.put_env(:event_bus, :handlers, original_handlers)
     end)
 
     :ok
