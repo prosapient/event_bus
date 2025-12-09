@@ -37,22 +37,4 @@ defmodule EventBusTest do
       assert EventBus.publish(event) == :ok
     end
   end
-
-  describe "EventBus.Handler" do
-    test "handler returns oban_options" do
-      opts = TestHandler.oban_options()
-
-      assert Keyword.get(opts, :queue) == :test_events
-      assert Keyword.get(opts, :priority) == 1
-      assert Keyword.get(opts, :max_attempts) == 3
-    end
-
-    test "different handlers can have different options" do
-      test_opts = TestHandler.oban_options()
-      another_opts = AnotherHandler.oban_options()
-
-      assert Keyword.get(test_opts, :priority) == 1
-      assert Keyword.get(another_opts, :priority) == 2
-    end
-  end
 end

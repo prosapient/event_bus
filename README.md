@@ -43,14 +43,15 @@ end
 config :event_bus, :handlers, handlers
 ```
 
-### 4. Configure Oban queue
+### 4. Configure Oban queues
 
 ```elixir
 # config/config.exs
 config :my_app, Oban,
   queues: [
     # ... other queues ...
-    events: 20
+    events: 20,
+    events_partitioned: [local_limit: 20, global_limit: [allowed: 1, partition: [fields: [:args], keys: [:partition_key]]]]
   ]
 ```
 
@@ -76,12 +77,29 @@ defmodule MyApp.Finances.EventHandler do
 
   @impl EventBus.Handler
   def oban_options do
-    [queue: :critical_events, priority: 0, max_attempts: 10]
+    [priority: 3, max_attempts: 10]
   end
 end
 ```
 
-Available options: `:queue` (default: `:events`), `:priority` (0-9, lower is higher), `:max_attempts` (default: 5).
+Available options: `:priority` (0-9, lower is higher, default: 0), `:max_attempts` (default: 5).
+
+## Partitioning
+
+Events for the same entity can be processed sequentially by implementing `EventBus.Partitioned`:
+
+```elixir
+defmodule MyApp.Orders.Events.OrderCreated do
+  defstruct [:order_id, :customer_id, :total]
+
+  defimpl EventBus.Partitioned do
+    def partition_key(%{order_id: id}), do: id
+  end
+end
+```
+
+- Events with partition key go to `:events_partitioned` queue (sequential per key)
+- Events without partition key go to `:events` queue (parallel)
 
 ## Return values
 

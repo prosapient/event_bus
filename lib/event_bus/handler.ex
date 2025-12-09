@@ -19,7 +19,7 @@ defmodule EventBus.Handler do
         # Optional: customize Oban options
         @impl EventBus.Handler
         def oban_options do
-          [queue: :critical_events, priority: 0, max_attempts: 10]
+          [priority: 0, max_attempts: 10]
         end
       end
 
@@ -27,9 +27,10 @@ defmodule EventBus.Handler do
 
   Handlers can optionally customize their Oban worker behavior via `oban_options/0`:
 
-  - `:queue` - The Oban queue to use (default: `:events`)
-  - `:priority` - Job priority, 0-9 where 0 is highest
+  - `:priority` - Job priority, 0-9 where 0 is highest (default: 0)
   - `:max_attempts` - Maximum retry attempts (default: 5)
+
+  Note: `:queue` is determined automatically based on event's partition key.
 
   ## Idempotency
 

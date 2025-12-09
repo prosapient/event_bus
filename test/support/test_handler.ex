@@ -13,11 +13,6 @@ defmodule EventBus.TestSupport.TestHandler do
     send(self(), {:handled, __MODULE__, event})
     :ok
   end
-
-  @impl true
-  def oban_options do
-    [queue: :test_events, priority: 1, max_attempts: 3]
-  end
 end
 
 defmodule EventBus.TestSupport.AnotherHandler do
@@ -33,11 +28,6 @@ defmodule EventBus.TestSupport.AnotherHandler do
     send(self(), {:handled, __MODULE__, event})
     :ok
   end
-
-  @impl true
-  def oban_options do
-    [queue: :test_events, priority: 2, max_attempts: 5]
-  end
 end
 
 defmodule EventBus.TestSupport.FailingHandler do
@@ -52,11 +42,6 @@ defmodule EventBus.TestSupport.FailingHandler do
   def handle_event(%TestEvent{}) do
     {:error, :intentional_failure}
   end
-
-  @impl true
-  def oban_options do
-    [queue: :test_events, max_attempts: 1]
-  end
 end
 
 defmodule EventBus.TestSupport.CrashingHandler do
@@ -70,10 +55,5 @@ defmodule EventBus.TestSupport.CrashingHandler do
   @impl true
   def handle_event(%TestEvent{}) do
     raise "Intentional crash"
-  end
-
-  @impl true
-  def oban_options do
-    [queue: :test_events, max_attempts: 1]
   end
 end
