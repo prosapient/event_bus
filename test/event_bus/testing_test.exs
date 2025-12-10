@@ -135,7 +135,7 @@ defmodule EventBus.TestingTest do
 
       assert_received {:event_published, _, %{stacktrace: stacktrace}}
       assert is_list(stacktrace)
-      assert length(stacktrace) > 0
+      assert not Enum.empty?(stacktrace)
     end
 
     test "inline mode executes handlers synchronously" do
