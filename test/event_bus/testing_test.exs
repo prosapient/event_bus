@@ -8,9 +8,6 @@ defmodule EventBus.TestingTest do
   alias EventBus.TestSupport.TestHandler
 
   setup do
-    # Reset mode before each test
-    Process.delete(:event_bus_mode)
-
     original_handlers = Application.get_env(:event_bus, :handlers, %{})
 
     # Setup handlers for inline mode tests
@@ -19,11 +16,10 @@ defmodule EventBus.TestingTest do
     })
 
     on_exit(fn ->
-      Process.delete(:event_bus_mode)
       Application.put_env(:event_bus, :handlers, original_handlers)
     end)
 
-    :ok
+    setup_event_bus_testing()
   end
 
   describe "set_event_bus_mode/1" do
@@ -168,6 +164,71 @@ defmodule EventBus.TestingTest do
       |> Task.await()
 
       assert_event_published %TestEvent{id: "from-task"}
+    end
+  end
+
+  describe "allow_event_bus/1 for non-Task processes" do
+    test "events from spawned process reach test when allowed" do
+      set_event_bus_mode(:strict)
+      test_pid = self()
+
+      pid =
+        spawn(fn ->
+          receive do
+            :publish ->
+              ProcessMailbox.publish(%TestEvent{id: "from-spawn", data: "test"})
+              send(test_pid, :done)
+          end
+        end)
+
+      allow_event_bus(pid)
+      send(pid, :publish)
+      assert_receive :done
+
+      assert_event_published %TestEvent{id: "from-spawn"}
+    end
+
+    test "events from GenServer-like process reach test when allowed" do
+      set_event_bus_mode(:strict)
+      test_pid = self()
+
+      # Simulate GenServer without $callers
+      {:ok, agent} =
+        Agent.start(fn ->
+          %{test_pid: test_pid}
+        end)
+
+      allow_event_bus(agent)
+
+      Agent.update(agent, fn state ->
+        ProcessMailbox.publish(%TestEvent{id: "from-agent", data: "test"})
+        state
+      end)
+
+      Agent.stop(agent)
+
+      assert_event_published %TestEvent{id: "from-agent"}
+    end
+
+    test "allow_event_bus/2 allows specifying explicit owner" do
+      set_event_bus_mode(:strict)
+      owner = self()
+      test_pid = self()
+
+      pid =
+        spawn(fn ->
+          receive do
+            :publish ->
+              ProcessMailbox.publish(%TestEvent{id: "explicit-owner", data: "test"})
+              send(test_pid, :done)
+          end
+        end)
+
+      allow_event_bus(pid, owner)
+      send(pid, :publish)
+      assert_receive :done
+
+      assert_event_published %TestEvent{id: "explicit-owner"}
     end
   end
 

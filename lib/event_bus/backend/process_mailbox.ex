@@ -1,11 +1,8 @@
 defmodule EventBus.Backend.ProcessMailbox do
   @moduledoc """
-  Backend that sends events to the root caller's mailbox.
+  Backend that sends events to the owner test process via NimbleOwnership.
 
-  Useful for testing - use `EventBus.Testing` helpers to verify events.
-
-  Uses `$callers` to find the root process when called from spawned processes
-  (Task, GenServer, etc.), so assertions work even with nested async code.
+  Works with any process type (Task, GenServer, Agent, spawn, etc.)
 
   ## Modes
 
@@ -28,6 +25,14 @@ defmodule EventBus.Backend.ProcessMailbox do
 
         assert_event_published %CallCompleted{call_id: id}
       end
+
+  ## Cross-process support
+
+  Events from Task-based processes automatically route to the test process.
+  For GenServer/Agent/spawn, use `allow_event_bus/1`:
+
+      {:ok, pid} = MyGenServer.start_link()
+      allow_event_bus(pid)
   """
 
   @behaviour EventBus.Backend
@@ -41,18 +46,12 @@ defmodule EventBus.Backend.ProcessMailbox do
         EventBus.Backend.Inline.publish(event)
 
       mode when mode in [:default, :strict] ->
+        owner = EventBus.Testing.get_owner()
         meta = %{strict: mode == :strict, stacktrace: get_stacktrace()}
-        send(root_caller(), {:event_published, event, meta})
+        send(owner, {:event_published, event, meta})
     end
 
     :ok
-  end
-
-  defp root_caller do
-    case Process.get(:"$callers", []) do
-      [] -> self()
-      callers -> List.last(callers)
-    end
   end
 
   defp get_stacktrace do

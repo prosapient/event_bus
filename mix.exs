@@ -28,7 +28,8 @@ defmodule EventBus.MixProject do
   defp deps do
     [
       {:oban, "~> 2.19"},
-      {:oban_pro, "~> 1.5", repo: "oban"}
+      {:oban_pro, "~> 1.5", repo: "oban"},
+      {:nimble_ownership, "~> 1.0"}
     ]
   end
 end

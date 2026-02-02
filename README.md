@@ -115,6 +115,10 @@ end
 # config/test.exs
 config :event_bus, :backend, EventBus.Backend.ProcessMailbox
 
+# test/test_helper.exs
+EventBus.Testing.start_link()
+ExUnit.start()
+
 # test/support/data_case.ex
 defmodule MyApp.DataCase do
   use ExUnit.CaseTemplate
@@ -122,10 +126,9 @@ defmodule MyApp.DataCase do
   using do
     quote do
       import EventBus.Testing
+      setup :setup_event_bus_testing
     end
   end
-
-  setup :setup_event_bus_testing
 end
 ```
 
@@ -196,6 +199,24 @@ test "complex scenario", ctx do
   set_event_bus_mode(:strict)
   Engagements.complete_call(call, %{duration: 60})
   assert_event_published %CallCompleted{}
+end
+```
+
+### Cross-process support
+
+Events published from Task-based processes automatically route to the test process.
+For other process types (GenServer, Agent, spawn), use `allow_event_bus/1` before the process publishes:
+
+```elixir
+test "genserver publishes events" do
+  set_event_bus_mode(:strict)
+
+  {:ok, pid} = MyGenServer.start_link()
+  allow_event_bus(pid)
+
+  MyGenServer.do_something(pid)
+
+  assert_event_published %SomethingHappened{}
 end
 ```
 
