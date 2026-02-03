@@ -278,4 +278,105 @@ defmodule EventBus.TestingTest do
       assert error.message =~ "Published at:"
     end
   end
+
+  describe "strict event tracking for on_exit" do
+    test "published strict events are tracked" do
+      set_event_bus_mode(:strict)
+
+      ProcessMailbox.publish(%TestEvent{id: "tracked-1", data: "test"})
+
+      events = get_strict_events()
+      assert length(events) == 1
+      assert {%TestEvent{id: "tracked-1"}, %{strict: true}} = hd(events)
+
+      assert_event_published %TestEvent{id: "tracked-1"}
+    end
+
+    test "multiple strict events are tracked" do
+      set_event_bus_mode(:strict)
+
+      ProcessMailbox.publish(%TestEvent{id: "multi-1", data: "test"})
+      ProcessMailbox.publish(%TestEvent{id: "multi-2", data: "test"})
+
+      events = get_strict_events()
+      assert length(events) == 2
+
+      assert_event_published %TestEvent{id: "multi-1"}
+      assert_event_published %TestEvent{id: "multi-2"}
+    end
+
+    test "assert_event_published removes event from tracking" do
+      set_event_bus_mode(:strict)
+
+      ProcessMailbox.publish(%TestEvent{id: "to-remove", data: "test"})
+      assert length(get_strict_events()) == 1
+
+      assert_event_published %TestEvent{id: "to-remove"}
+      assert get_strict_events() == []
+    end
+
+    test "default mode events are not tracked" do
+      set_event_bus_mode(:default)
+
+      ProcessMailbox.publish(%TestEvent{id: "default-event", data: "test"})
+
+      assert get_strict_events() == []
+    end
+
+    test "events from Task are tracked under test process" do
+      set_event_bus_mode(:strict)
+
+      Task.async(fn ->
+        ProcessMailbox.publish(%TestEvent{id: "from-task-tracked", data: "test"})
+      end)
+      |> Task.await()
+
+      events = get_strict_events()
+      assert length(events) == 1
+      assert {%TestEvent{id: "from-task-tracked"}, _} = hd(events)
+
+      assert_event_published %TestEvent{id: "from-task-tracked"}
+    end
+
+    test "events from allowed process are tracked under test process" do
+      set_event_bus_mode(:strict)
+      test_pid = self()
+
+      pid =
+        spawn(fn ->
+          receive do
+            :publish ->
+              ProcessMailbox.publish(%TestEvent{id: "from-spawn-tracked", data: "test"})
+              send(test_pid, :done)
+          end
+        end)
+
+      allow_event_bus(pid)
+      send(pid, :publish)
+      assert_receive :done
+
+      events = get_strict_events()
+      assert length(events) == 1
+
+      assert_event_published %TestEvent{id: "from-spawn-tracked"}
+    end
+
+    test "on_exit can read tracked events from different process" do
+      pid = self()
+      set_event_bus_mode(:strict)
+
+      ProcessMailbox.publish(%TestEvent{id: "on-exit-test", data: "test"})
+
+      # Simulate on_exit reading from different process
+      task =
+        Task.async(fn ->
+          get_strict_events_for(pid)
+        end)
+
+      events = Task.await(task)
+      assert length(events) == 1
+
+      assert_event_published %TestEvent{id: "on-exit-test"}
+    end
+  end
 end

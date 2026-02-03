@@ -16,6 +16,10 @@ defmodule EventBus.Backend.ProcessMailbox do
 
       import EventBus.Testing
 
+      setup do
+        setup_event_bus_testing()
+      end
+
       test "publishes event", ctx do
         %{call: call} = produce(ctx, [:call])  # default mode, not checked
 
@@ -24,6 +28,7 @@ defmodule EventBus.Backend.ProcessMailbox do
         Engagements.complete_call(call, %{duration: 60})
 
         assert_event_published %CallCompleted{call_id: id}
+        # on_exit fails if any strict events left unasserted
       end
 
   ## Cross-process support
@@ -49,6 +54,10 @@ defmodule EventBus.Backend.ProcessMailbox do
         owner = EventBus.Testing.get_owner()
         meta = %{strict: mode == :strict, stacktrace: get_stacktrace()}
         send(owner, {:event_published, event, meta})
+
+        if mode == :strict do
+          EventBus.Testing.track_strict_event(event, meta)
+        end
     end
 
     :ok

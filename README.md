@@ -160,7 +160,7 @@ end
 
 ### Modes
 
-- `:default` - events sent to mailbox but not checked in on_exit (for seed factory noise)
+- `:default` - events sent to mailbox but not checked (for seed factory noise)
 - `:strict` - events must be asserted, on_exit fails if any left unasserted
 - `:inline` - handlers execute synchronously (for integration tests)
 

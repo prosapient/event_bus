@@ -31,7 +31,7 @@ defmodule EventBus.Testing do
 
   ## Modes
 
-  - `:default` - events sent to mailbox with `strict: false`, not checked in on_exit
+  - `:default` - events sent to mailbox with `strict: false`, not checked
   - `:strict` - events sent to mailbox with `strict: true`, on_exit fails if unasserted
   - `:inline` - handlers execute synchronously, nothing sent to mailbox
 
@@ -59,6 +59,7 @@ defmodule EventBus.Testing do
 
   @ownership_server __MODULE__
   @ownership_key :event_bus_mode
+  @strict_events_key :strict_events
 
   @type mode :: :default | :strict | :inline
 
@@ -86,7 +87,7 @@ defmodule EventBus.Testing do
   @doc """
   Sets the event bus mode for the current test process.
 
-  - `:default` - events sent to mailbox with `strict: false`, not checked in on_exit
+  - `:default` - events sent to mailbox with `strict: false`, not checked
   - `:strict` - events sent to mailbox with `strict: true`, on_exit fails if unasserted
   - `:inline` - handlers execute synchronously, nothing sent to mailbox
 
@@ -197,6 +198,57 @@ defmodule EventBus.Testing do
     end
   end
 
+  @doc false
+  @spec track_strict_event(term(), map()) :: :ok
+  def track_strict_event(event, meta) do
+    owner = get_owner()
+
+    NimbleOwnership.get_and_update(
+      @ownership_server,
+      owner,
+      @strict_events_key,
+      fn
+        nil -> {:ok, [{event, meta}]}
+        events -> {:ok, [{event, meta} | events]}
+      end
+    )
+
+    :ok
+  end
+
+  @doc false
+  @spec untrack_strict_event(term()) :: :ok
+  def untrack_strict_event(event) do
+    owner = get_owner()
+
+    NimbleOwnership.get_and_update(
+      @ownership_server,
+      owner,
+      @strict_events_key,
+      fn
+        nil -> {:ok, nil}
+        events -> {:ok, List.keydelete(events, event, 0)}
+      end
+    )
+
+    :ok
+  end
+
+  @doc false
+  @spec get_strict_events() :: [{term(), map()}]
+  def get_strict_events do
+    get_strict_events_for(get_owner())
+  end
+
+  @doc false
+  @spec get_strict_events_for(pid()) :: [{term(), map()}]
+  def get_strict_events_for(pid) do
+    case NimbleOwnership.get_owned(@ownership_server, pid, %{}) do
+      %{@strict_events_key => events} when is_list(events) -> events
+      _ -> []
+    end
+  end
+
   @doc """
   Asserts that a strict event matching the pattern was published.
 
@@ -210,15 +262,12 @@ defmodule EventBus.Testing do
   """
   defmacro assert_event_published(pattern) do
     quote do
-      assert_received {:event_published, unquote(pattern), %{strict: true}}
+      assert_received {:event_published, unquote(pattern) = event, %{strict: true}}
+      EventBus.Testing.untrack_strict_event(event)
     end
   end
 
-  @doc """
-  Verifies no unasserted strict events remain in mailbox.
-
-  Called automatically when switching from `:strict` mode and in on_exit.
-  """
+  @doc false
   @spec assert_no_pending_strict_events!() :: :ok
   def assert_no_pending_strict_events! do
     strict_events = flush_strict_events()
@@ -266,14 +315,22 @@ defmodule EventBus.Testing do
   """
   @spec setup_event_bus_testing(map()) :: :ok
   def setup_event_bus_testing(_context \\ %{}) do
+    pid = self()
+
     ExUnit.Callbacks.on_exit(fn ->
-      case fetch_owned_mode(self()) do
+      case fetch_owned_mode(pid) do
         {:ok, :strict} ->
-          assert_no_pending_strict_events!()
-          NimbleOwnership.cleanup_owner(@ownership_server, self())
+          events = get_strict_events_for(pid)
+
+          if events != [] do
+            formatted = format_pending_events(events)
+            raise "Unasserted events published in strict mode:\n\n#{formatted}"
+          end
+
+          NimbleOwnership.cleanup_owner(@ownership_server, pid)
 
         {:ok, _mode} ->
-          NimbleOwnership.cleanup_owner(@ownership_server, self())
+          NimbleOwnership.cleanup_owner(@ownership_server, pid)
 
         :error ->
           :ok
