@@ -53,11 +53,14 @@ defmodule EventBus.Backend.ProcessMailbox do
       mode when mode in [:default, :strict] ->
         owner = EventBus.Testing.get_owner()
         meta = %{strict: mode == :strict, stacktrace: get_stacktrace()}
-        send(owner, {:event_published, event, meta})
 
+        # Track before send to avoid race condition:
+        # test process could receive and untrack before we track
         if mode == :strict do
           EventBus.Testing.track_strict_event(event, meta)
         end
+
+        send(owner, {:event_published, event, meta})
     end
 
     :ok
