@@ -272,6 +272,9 @@ defmodule EventBus.Testing do
   def assert_no_pending_strict_events! do
     strict_events = flush_strict_events()
 
+    # Untrack flushed events so on_exit doesn't report them again
+    Enum.each(strict_events, fn {event, _meta} -> untrack_strict_event(event) end)
+
     if strict_events != [] do
       formatted = format_pending_events(strict_events)
       raise "Unasserted events published in strict mode:\n\n#{formatted}"
@@ -317,23 +320,38 @@ defmodule EventBus.Testing do
   def setup_event_bus_testing(_context \\ %{}) do
     pid = self()
 
-    ExUnit.Callbacks.on_exit(fn ->
-      case fetch_owned_mode(pid) do
-        {:ok, :strict} ->
-          events = get_strict_events_for(pid)
+    # Pre-register ownership so we can set manual cleanup mode.
+    # Without this, NimbleOwnership auto-cleans data when the test process exits
+    # (via :DOWN monitor), before the on_exit callback gets a chance to check
+    # for unasserted strict events.
+    NimbleOwnership.get_and_update(
+      @ownership_server,
+      pid,
+      @ownership_key,
+      fn _ -> {:ok, :default} end
+    )
 
-          if events != [] do
-            formatted = format_pending_events(events)
-            raise "Unasserted events published in strict mode:\n\n#{formatted}"
-          end
+    NimbleOwnership.set_owner_to_manual_cleanup(@ownership_server, pid)
 
-          NimbleOwnership.cleanup_owner(@ownership_server, pid)
+    ExUnit.Callbacks.on_exit(__MODULE__, fn ->
+      try do
+        case fetch_owned_mode(pid) do
+          {:ok, :strict} ->
+            events = get_strict_events_for(pid)
 
-        {:ok, _mode} ->
-          NimbleOwnership.cleanup_owner(@ownership_server, pid)
+            if events != [] do
+              formatted = format_pending_events(events)
+              raise "Unasserted events published in strict mode:\n\n#{formatted}"
+            end
 
-        :error ->
-          :ok
+          {:ok, _mode} ->
+            :ok
+
+          :error ->
+            :ok
+        end
+      after
+        NimbleOwnership.cleanup_owner(@ownership_server, pid)
       end
     end)
 

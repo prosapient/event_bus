@@ -126,14 +126,15 @@ defmodule EventBus.TestingTest do
       set_event_bus_mode(:strict)
       ProcessMailbox.publish(%TestEvent{id: "123", data: "test"})
 
-      assert_received {:event_published, %TestEvent{id: "123"}, %{strict: true}}
+      assert_event_published %TestEvent{id: "123"}
     end
 
     test "strict mode includes stacktrace" do
       set_event_bus_mode(:strict)
       ProcessMailbox.publish(%TestEvent{id: "123", data: "test"})
 
-      assert_received {:event_published, _, %{stacktrace: stacktrace}}
+      assert_received {:event_published, event, %{strict: true, stacktrace: stacktrace}}
+      untrack_strict_event(event)
       assert is_list(stacktrace)
       assert not Enum.empty?(stacktrace)
     end
