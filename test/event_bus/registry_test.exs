@@ -1,4 +1,5 @@
 defmodule EventBus.RegistryTest do
+  # async: false because we modify application environment in tests
   use ExUnit.Case, async: false
 
   alias EventBus.Registry
