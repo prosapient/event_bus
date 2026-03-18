@@ -63,6 +63,35 @@ EventBus.publish(%MyApp.Orders.Events.OrderCreated{order_id: "123", customer_id:
 
 ## Handler options
 
+### Event filtering
+
+Handlers can implement `interested?/1` to skip events before an Oban job is created.
+This avoids the database write entirely when the event data is sufficient to determine
+that the handler has nothing to do.
+
+```elixir
+defmodule MyApp.Finances.EventHandler do
+  @behaviour EventBus.Handler
+
+  # Only handle orders above zero total
+  @impl EventBus.Handler
+  def interested?(%MyApp.Orders.Events.OrderCreated{total: total}), do: total > 0
+
+  @impl EventBus.Handler
+  def handle_event(%MyApp.Orders.Events.OrderCreated{} = event) do
+    MyApp.Finances.create_invoice(event.order_id)
+    :ok
+  end
+end
+```
+
+`interested?/1` **must be a pure function** — no database queries, API calls, or side effects.
+It runs synchronously in the publishing process (which may be inside an Ecto transaction).
+
+When not implemented, defaults to `true` (all events are processed).
+
+### Oban options
+
 Handlers can customize Oban worker options:
 
 ```elixir

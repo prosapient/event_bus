@@ -57,3 +57,23 @@ defmodule EventBus.TestSupport.CrashingHandler do
     raise "Intentional crash"
   end
 end
+
+defmodule EventBus.TestSupport.SelectiveHandler do
+  @moduledoc """
+  A handler that only processes events with specific data.
+  Used for testing the `interested?/1` callback.
+  """
+  @behaviour EventBus.Handler
+
+  alias EventBus.TestSupport.TestEvent
+
+  @impl true
+  def interested?(%TestEvent{data: "relevant"}), do: true
+  def interested?(%TestEvent{}), do: false
+
+  @impl true
+  def handle_event(%TestEvent{} = event) do
+    send(self(), {:handled, __MODULE__, event})
+    :ok
+  end
+end

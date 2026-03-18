@@ -4,6 +4,7 @@ defmodule EventBus.RegistryTest do
 
   alias EventBus.Registry
   alias EventBus.TestSupport.AnotherHandler
+  alias EventBus.TestSupport.SelectiveHandler
   alias EventBus.TestSupport.TestEvent
   alias EventBus.TestSupport.TestHandler
 
@@ -38,6 +39,26 @@ defmodule EventBus.RegistryTest do
       assert_raise ArgumentError, fn ->
         Registry.handlers_for(TestEvent)
       end
+    end
+  end
+
+  describe "handlers_for_event/1" do
+    test "filters out handlers not interested in the event" do
+      Application.put_env(:event_bus, :handlers, %{
+        TestEvent => [TestHandler, SelectiveHandler]
+      })
+
+      assert Registry.handlers_for_event(%TestEvent{id: "1", data: "irrelevant"}) ==
+               [TestHandler]
+    end
+
+    test "includes handlers interested in the event" do
+      Application.put_env(:event_bus, :handlers, %{
+        TestEvent => [TestHandler, SelectiveHandler]
+      })
+
+      assert Registry.handlers_for_event(%TestEvent{id: "1", data: "relevant"}) ==
+               [TestHandler, SelectiveHandler]
     end
   end
 end

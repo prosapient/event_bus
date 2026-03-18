@@ -33,7 +33,10 @@ defmodule EventBus.Registry do
   end
 
   @doc """
-  Returns handlers for an event struct, logging a warning if none registered.
+  Returns handlers for an event struct that are interested in processing it.
+
+  Filters out handlers whose `interested?/1` callback returns `false`.
+  Logs a warning if no handlers are registered for the event type.
   """
   @spec handlers_for_event(event :: struct()) :: [module()]
   def handlers_for_event(event) do
@@ -44,6 +47,6 @@ defmodule EventBus.Registry do
       Logger.warning("No handlers registered for event: #{inspect(event_module)}")
     end
 
-    handlers
+    Enum.filter(handlers, &EventBus.Handler.interested?(&1, event))
   end
 end
