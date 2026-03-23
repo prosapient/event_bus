@@ -77,3 +77,17 @@ defmodule EventBus.TestSupport.SelectiveHandler do
     :ok
   end
 end
+
+defmodule EventBus.TestSupport.ResultHandler do
+  @moduledoc """
+  A handler that returns {:ok, result} for testing run_event result forwarding.
+  """
+  @behaviour EventBus.Handler
+
+  alias EventBus.TestSupport.TestEvent
+
+  @impl true
+  def handle_event(%TestEvent{} = event) do
+    {:ok, event.data}
+  end
+end

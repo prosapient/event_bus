@@ -5,6 +5,9 @@ defmodule EventBus.TestingTest do
 
   alias EventBus.Backend.ProcessMailbox
   alias EventBus.TestSupport.TestEvent
+  alias EventBus.TestSupport.FailingHandler
+  alias EventBus.TestSupport.ResultHandler
+  alias EventBus.TestSupport.SelectiveHandler
   alias EventBus.TestSupport.TestHandler
 
   setup do
@@ -378,6 +381,60 @@ defmodule EventBus.TestingTest do
       assert length(events) == 1
 
       assert_event_published %TestEvent{id: "on-exit-test"}
+    end
+  end
+
+  describe "run_event/2" do
+    test "returns {:ok, :processed} when handler returns :ok" do
+      event = %TestEvent{id: "run-1", data: "test"}
+
+      assert {:ok, :processed} = EventBus.Testing.run_event(event, TestHandler)
+    end
+
+    test "returns {:ok, {:processed, result}} when handler returns {:ok, result}" do
+      event = %TestEvent{id: "run-2", data: "payload"}
+
+      assert {:ok, {:processed, "payload"}} = EventBus.Testing.run_event(event, ResultHandler)
+    end
+
+    test "returns {:ok, :not_interested} when handler is not interested" do
+      event = %TestEvent{id: "run-3", data: "irrelevant"}
+
+      assert {:ok, :not_interested} = EventBus.Testing.run_event(event, SelectiveHandler)
+    end
+
+    test "returns {:error, reason} when handler fails" do
+      event = %TestEvent{id: "run-4", data: "test"}
+
+      assert {:error, :intentional_failure} = EventBus.Testing.run_event(event, FailingHandler)
+    end
+  end
+
+  describe "run_event!/2" do
+    test "returns :processed when handler returns :ok" do
+      event = %TestEvent{id: "bang-1", data: "test"}
+
+      assert :processed = EventBus.Testing.run_event!(event, TestHandler)
+    end
+
+    test "returns {:processed, result} when handler returns {:ok, result}" do
+      event = %TestEvent{id: "bang-2", data: "payload"}
+
+      assert {:processed, "payload"} = EventBus.Testing.run_event!(event, ResultHandler)
+    end
+
+    test "returns :not_interested when handler is not interested" do
+      event = %TestEvent{id: "bang-3", data: "irrelevant"}
+
+      assert :not_interested = EventBus.Testing.run_event!(event, SelectiveHandler)
+    end
+
+    test "raises when handler fails" do
+      event = %TestEvent{id: "bang-4", data: "test"}
+
+      assert_raise RuntimeError, ~r/handle_event\/1 failed/, fn ->
+        EventBus.Testing.run_event!(event, FailingHandler)
+      end
     end
   end
 end

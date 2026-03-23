@@ -306,6 +306,58 @@ defmodule EventBus.Testing do
   end
 
   @doc """
+  Runs an event through a handler, checking `interested?/1` first.
+
+  Returns:
+  - `{:ok, :processed}` — handler was interested and `handle_event/1` returned `:ok`
+  - `{:ok, {:processed, result}}` — handler was interested and `handle_event/1` returned `{:ok, result}`
+  - `{:ok, :not_interested}` — handler was not interested, `handle_event/1` was not called
+  - `{:error, reason}` — handler was interested but `handle_event/1` returned an error
+
+  ## Example
+
+      assert {:ok, :processed} = EventBus.Testing.run_event(event, MyHandler)
+      assert {:ok, {:processed, result}} = EventBus.Testing.run_event(event, MyHandler)
+      assert {:ok, :not_interested} = EventBus.Testing.run_event(event, MyHandler)
+      assert {:error, _} = EventBus.Testing.run_event(event, MyHandler)
+  """
+  @spec run_event(struct(), module()) ::
+          {:ok, :processed | {:processed, term()} | :not_interested} | {:error, term()}
+  def run_event(event, handler_module) do
+    if EventBus.Handler.interested?(handler_module, event) do
+      case handler_module.handle_event(event) do
+        :ok -> {:ok, :processed}
+        {:ok, result} -> {:ok, {:processed, result}}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      {:ok, :not_interested}
+    end
+  end
+
+  @doc """
+  Bang version of `run_event/2`. Raises on `{:error, reason}`.
+
+  Returns:
+  - `:processed` — handler was interested and `handle_event/1` returned `:ok`
+  - `{:processed, result}` — handler was interested and `handle_event/1` returned `{:ok, result}`
+  - `:not_interested` — handler was not interested, `handle_event/1` was not called
+
+  ## Example
+
+      assert :processed = EventBus.Testing.run_event!(event, MyHandler)
+      assert {:processed, result} = EventBus.Testing.run_event!(event, MyHandler)
+      assert :not_interested = EventBus.Testing.run_event!(event, MyHandler)
+  """
+  @spec run_event!(struct(), module()) :: :processed | {:processed, term()} | :not_interested
+  def run_event!(event, handler_module) do
+    case run_event(event, handler_module) do
+      {:ok, result} -> result
+      {:error, reason} -> raise "#{inspect(handler_module)}.handle_event/1 failed: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
   Setup function to add on_exit hook. Call from your DataCase setup.
 
       setup :setup_event_bus_testing
