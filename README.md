@@ -161,12 +161,30 @@ defmodule MyApp.DataCase do
 end
 ```
 
-### Unit test handlers directly
+### Test handlers with `run_event!/2`
+
+`run_event!/2` runs an event through a specific handler, checking `interested?/1` first.
+It executes synchronously and returns the result directly.
 
 ```elixir
-alias MyApp.Orders.Events.OrderCreated
+# Handler processes the event
+event = %OrderCreated{order_id: "123", customer_id: "456", total: 100}
+assert :processed = run_event!(event, MyApp.Finances.EventHandler)
 
-assert :ok = MyApp.Finances.EventHandler.handle_event(%OrderCreated{order_id: "123"})
+# Handler returns a value
+assert {:processed, invoice} = run_event!(event, MyApp.Finances.EventHandler)
+assert invoice.order_id == "123"
+
+# Handler is not interested (interested?/1 returned false)
+event = %OrderCreated{order_id: "123", customer_id: "456", total: 0}
+assert :not_interested = run_event!(event, MyApp.Finances.EventHandler)
+```
+
+The non-bang version `run_event/2` returns `{:ok, result}` or `{:error, reason}` instead of raising:
+
+```elixir
+assert {:ok, :processed} = run_event(event, MyApp.Finances.EventHandler)
+assert {:error, :insufficient_funds} = run_event(event, MyApp.Finances.EventHandler)
 ```
 
 ### Test event publishing with strict mode
