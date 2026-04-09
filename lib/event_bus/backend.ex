@@ -25,5 +25,5 @@ defmodule EventBus.Backend do
       config :event_bus, :backend, EventBus.Backend.ProcessMailbox
   """
 
-  @callback publish(event :: struct()) :: :ok
+  @callback publish(event :: struct() | [struct()]) :: :ok
 end

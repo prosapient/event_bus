@@ -43,6 +43,11 @@ defmodule EventBus.Backend.ProcessMailbox do
   @behaviour EventBus.Backend
 
   @impl EventBus.Backend
+  def publish(events) when is_list(events) do
+    Enum.each(events, &publish/1)
+    :ok
+  end
+
   def publish(event) do
     mode = EventBus.Testing.get_event_bus_mode()
 

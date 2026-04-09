@@ -48,7 +48,17 @@ defmodule EventBus do
       EventBus.publish(%OrderCreated{order_id: "123"})
   """
 
-  @spec publish(event :: struct()) :: :ok
+  @spec publish(event :: struct() | [struct()]) :: :ok
+  def publish([]), do: :ok
+
+  def publish(events) when is_list(events) do
+    Enum.each(events, fn event ->
+      Logger.debug("EventBus publishing #{inspect(event.__struct__)}")
+    end)
+
+    backend().publish(events)
+  end
+
   def publish(event) do
     Logger.debug("EventBus publishing #{inspect(event.__struct__)}")
     backend().publish(event)

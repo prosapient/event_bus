@@ -24,6 +24,21 @@ defmodule EventBus.Backend.ProcessMailboxTest do
       assert_received {:event_published, ^event2, _}
     end
 
+    test "publishes a list of events" do
+      event1 = %TestEvent{id: "1", data: "first"}
+      event2 = %TestEvent{id: "2", data: "second"}
+
+      assert ProcessMailbox.publish([event1, event2]) == :ok
+
+      assert_received {:event_published, ^event1, _}
+      assert_received {:event_published, ^event2, _}
+    end
+
+    test "publishes an empty list" do
+      assert EventBus.publish([]) == :ok
+      refute_received {:event_published, _, _}
+    end
+
     test "can pattern match on event fields" do
       event = %TestEvent{id: "abc", data: "some data"}
 
@@ -61,6 +76,7 @@ defmodule EventBus.Backend.ProcessMailboxTest do
     test "stacktrace starts from caller, excluding ProcessMailbox internals" do
       event = %TestEvent{id: "stacktrace-test", data: "test"}
 
+      publish_line = __ENV__.line + 1
       ProcessMailbox.publish(event)
 
       assert_received {:event_published, ^event, %{stacktrace: stacktrace}}
@@ -73,7 +89,7 @@ defmodule EventBus.Backend.ProcessMailboxTest do
       assert arity == 1
       assert Atom.to_string(function) =~ "stacktrace starts from caller"
       assert location |> Keyword.fetch!(:file) |> to_string() =~ "process_mailbox_test.exs"
-      assert Keyword.fetch!(location, :line) == 64
+      assert Keyword.fetch!(location, :line) == publish_line
 
       # Internal frames should be excluded
       stacktrace_modules = Enum.map(stacktrace, &elem(&1, 0))
