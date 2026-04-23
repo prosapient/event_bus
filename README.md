@@ -4,6 +4,30 @@ Internal event bus for decoupling domain logic across contexts.
 
 Uses Oban for reliable, async event processing. Each event is dispatched to all registered handlers via separate Oban jobs, allowing independent processing, retries, and prioritization.
 
+## Requirements
+
+This library depends on [Oban Pro](https://getoban.pro/) (commercial). You need
+an active Oban license and the `oban` Hex repo authenticated locally before
+fetching dependencies:
+
+```bash
+mix hex.repo add oban https://getoban.pro/repo \
+  --fetch-public-key SHA256:4/OSKi0NRF91QVVXlGAhb/BIMLnK8NHcx/EWs+aIWPc \
+  --auth-key YOUR_OBAN_LICENSE_KEY
+```
+
+## Installation
+
+Add `event_bus` to your list of dependencies in `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:event_bus, github: "prosapient/event_bus", tag: "v0.1.0"}
+  ]
+end
+```
+
 ## Usage
 
 ### 1. Define an event
