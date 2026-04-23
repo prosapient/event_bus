@@ -1,18 +1,21 @@
 defmodule EventBus.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+  @source_url "https://github.com/prosapient/event_bus"
+
   def project do
     [
       app: :event_bus,
-      version: "0.1.0",
-      build_path: "../../_build",
-      config_path: "../../config/config.exs",
-      deps_path: "../../deps",
-      lockfile: "../../mix.lock",
+      version: @version,
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      description: description(),
+      package: package(),
+      deps: deps(),
+      docs: docs(),
+      source_url: @source_url
     ]
   end
 
@@ -25,11 +28,34 @@ defmodule EventBus.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
+  defp description do
+    """
+    Internal event bus for decoupling domain logic across contexts, backed by Oban.
+    """
+  end
+
+  defp package do
+    [
+      licenses: ["Apache-2.0"],
+      links: %{GitHub: @source_url}
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md", "CHANGELOG.md"],
+      source_ref: "v#{@version}"
+    ]
+  end
+
   defp deps do
     [
       {:oban, "~> 2.19"},
       {:oban_pro, "~> 1.5", repo: "oban"},
-      {:nimble_ownership, "~> 1.0"}
+      {:nimble_ownership, "~> 1.0"},
+      {:postgrex, "~> 0.17", optional: true},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
 end

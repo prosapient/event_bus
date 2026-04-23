@@ -21,3 +21,10 @@ event_bus-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Editor / language server artifacts
+/.elixir_ls/
+/.lexical/
+
+# macOS
+.DS_Store
