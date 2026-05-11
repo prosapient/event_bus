@@ -1,10 +1,11 @@
 defmodule EventBus.WorkerTest do
   use ExUnit.Case, async: true
 
-  alias EventBus.Worker
-  alias EventBus.TestSupport.TestHandler
   alias EventBus.TestSupport.PartitionedEvent
+  alias EventBus.TestSupport.TestHandler
   alias EventBus.TestSupport.UnpartitionedEvent
+  alias EventBus.TestSupport.WorkerHelpers
+  alias EventBus.Worker
 
   describe "new_for_handler/2" do
     test "uses :events_partitioned queue for events with partition key" do
@@ -14,7 +15,7 @@ defmodule EventBus.WorkerTest do
       job = Ecto.Changeset.apply_changes(changeset)
 
       assert job.queue == "events_partitioned"
-      assert job.args.partition_key == "123"
+      assert WorkerHelpers.arg(job, :partition_key) == "123"
     end
 
     test "uses :events queue for events without partition key" do
@@ -24,7 +25,7 @@ defmodule EventBus.WorkerTest do
       job = Ecto.Changeset.apply_changes(changeset)
 
       assert job.queue == "events"
-      refute Map.has_key?(job.args, :partition_key)
+      refute WorkerHelpers.has_arg?(job, :partition_key)
     end
 
     test "stores handler in args" do
@@ -33,7 +34,7 @@ defmodule EventBus.WorkerTest do
       changeset = Worker.new_for_handler(event, TestHandler)
       job = Ecto.Changeset.apply_changes(changeset)
 
-      assert job.args.handler == "EventBus.TestSupport.TestHandler"
+      assert WorkerHelpers.arg(job, :handler) == "EventBus.TestSupport.TestHandler"
     end
 
     test "stores event module in meta" do

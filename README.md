@@ -4,17 +4,10 @@ Internal event bus for decoupling domain logic across contexts.
 
 Uses Oban for reliable, async event processing. Each event is dispatched to all registered handlers via separate Oban jobs, allowing independent processing, retries, and prioritization.
 
-## Requirements
-
-This library depends on [Oban Pro](https://getoban.pro/) (commercial). You need
-an active Oban license and the `oban` Hex repo authenticated locally before
-fetching dependencies:
-
-```bash
-mix hex.repo add oban https://getoban.pro/repo \
-  --fetch-public-key SHA256:4/OSKi0NRF91QVVXlGAhb/BIMLnK8NHcx/EWs+aIWPc \
-  --auth-key YOUR_OBAN_LICENSE_KEY
-```
+Works with both **Oban (OSS)** and **[Oban Pro](https://getoban.pro/)**. Pro is
+detected automatically at compile time — if your project depends on `oban_pro`,
+the Pro-flavored worker is used; otherwise, the OSS-flavored worker is used. See
+[Oban Pro vs Oban (OSS)](#oban-pro-vs-oban-oss) for the trade-offs of each mode.
 
 ## Installation
 
@@ -24,6 +17,24 @@ Add `event_bus` to your list of dependencies in `mix.exs`:
 def deps do
   [
     {:event_bus, github: "prosapient/event_bus", tag: "v0.1.0"}
+  ]
+end
+```
+
+If you want to use Oban Pro, add it to your own deps as well. You'll need an
+active Oban license and the `oban` Hex repo authenticated locally:
+
+```bash
+mix hex.repo add oban https://getoban.pro/repo \
+  --fetch-public-key SHA256:4/OSKi0NRF91QVVXlGAhb/BIMLnK8NHcx/EWs+aIWPc \
+  --auth-key YOUR_OBAN_LICENSE_KEY
+```
+
+```elixir
+def deps do
+  [
+    {:event_bus, github: "prosapient/event_bus", tag: "v0.1.0"},
+    {:oban_pro, "~> 1.5", repo: "oban"}
   ]
 end
 ```
@@ -69,13 +80,30 @@ config :event_bus, :handlers, handlers
 
 ### 4. Configure Oban queues
 
+With **Oban Pro** (cluster-wide ordering per partition key via Smart Engine):
+
 ```elixir
 # config/config.exs
 config :my_app, Oban,
   queues: [
     # ... other queues ...
     events: 20,
-    events_partitioned: [local_limit: 20, global_limit: [allowed: 1, partition: [fields: [:args], keys: [:partition_key]]]]
+    events_partitioned: [
+      local_limit: 20,
+      global_limit: [allowed: 1, partition: [fields: [:args], keys: [:partition_key]]]
+    ]
+  ]
+```
+
+With **Oban (OSS)** — ordering only guaranteed within a single node:
+
+```elixir
+# config/config.exs
+config :my_app, Oban,
+  queues: [
+    # ... other queues ...
+    events: 20,
+    events_partitioned: [local_limit: 1]
   ]
 ```
 
@@ -159,6 +187,42 @@ end
 - `:ok` or `{:ok, result}` - success
 - `{:error, reason}` - triggers Oban retry
 - raising an exception - triggers Oban retry
+
+## Oban Pro vs Oban (OSS)
+
+`EventBus` detects Oban Pro at compile time. If your project depends on
+`oban_pro`, the Pro-flavored worker is compiled; otherwise the OSS-flavored
+worker is. The detection uses `Code.ensure_loaded?(Oban.Pro.Worker)`, evaluated
+once when `event_bus` is compiled.
+
+The public API (`EventBus.publish/1`, handler behaviour, partition protocol,
+testing helpers) is identical in both modes. The differences are internal:
+
+| Feature | Oban Pro | Oban (OSS) |
+|---|---|---|
+| Worker | `Oban.Pro.Worker` with `args_schema` and `:term` field | `Oban.Worker` |
+| Event serialization | Native Elixir term via `:term` schema field | `:erlang.term_to_binary/1` + Base64 |
+| Job UI readability | Event readable in the Oban dashboard | Event displayed as opaque base64 blob |
+| Per-partition ordering | Cluster-wide (Smart Engine `global_limit` with partition) | Single-node only (`local_limit: 1`) |
+
+Both modes preserve all Elixir types — atoms, structs, tuples,
+`Decimal`/`DateTime`/custom types — so handlers receive the original event
+struct exactly as published, regardless of which mode is active. Migrating
+between modes does not require any handler changes.
+
+### Per-partition ordering caveat in OSS
+
+In Pro mode, the `:events_partitioned` queue uses Smart Engine's partitioned
+`global_limit` to guarantee that events with the same `partition_key` are
+processed strictly sequentially across the entire cluster. Oban OSS does not
+have an equivalent feature.
+
+In OSS mode, configuring `events_partitioned` with `local_limit: 1` only
+guarantees ordering **within a single node**. If you run multiple Oban nodes,
+two events with the same `partition_key` may be picked up concurrently by
+different nodes. Consider this when designing handlers — make them idempotent
+and tolerant of out-of-order delivery, or use Oban Pro if strict cluster-wide
+ordering is required.
 
 ## Testing
 

@@ -15,6 +15,8 @@ defmodule EventBus.MixProject do
       package: package(),
       deps: deps(),
       docs: docs(),
+      aliases: aliases(),
+      preferred_cli_env: preferred_cli_env(),
       source_url: @source_url
     ]
   end
@@ -25,12 +27,13 @@ defmodule EventBus.MixProject do
     ]
   end
 
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(env) when env in [:test, :test_pro], do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
   defp description do
     """
     Internal event bus for decoupling domain logic across contexts, backed by Oban.
+    Works with both Oban (OSS) and Oban Pro.
     """
   end
 
@@ -52,10 +55,26 @@ defmodule EventBus.MixProject do
   defp deps do
     [
       {:oban, "~> 2.19"},
-      {:oban_pro, "~> 1.5", repo: "oban"},
+      {:oban_pro, "~> 1.5", repo: "oban", only: [:dev, :test_pro]},
       {:nimble_ownership, "~> 1.0"},
       {:postgrex, "~> 0.17", optional: true},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      "test.oss": ["cmd MIX_ENV=test mix test"],
+      "test.pro": ["cmd MIX_ENV=test_pro mix test"],
+      "test.all": ["test.oss", "test.pro"]
+    ]
+  end
+
+  defp preferred_cli_env do
+    [
+      "test.oss": :test,
+      "test.pro": :test_pro,
+      "test.all": :test
     ]
   end
 end
