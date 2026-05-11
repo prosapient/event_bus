@@ -46,6 +46,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-otp${{ matrix.otp }}-elixir${{ matrix.elixir }}-build-test-
 
+      - name: Strip oban_pro from mix.lock
+        # oban_pro is locked in mix.lock from local :dev builds. Although our
+        # mix.exs doesn't declare it for :test, Mix still validates lock
+        # entries against their declared repo (`oban`, private). We remove
+        # the stale entry for this CI run — mix.lock is never written back.
+        run: sed -i '/^  "oban_pro":/d' mix.lock
+
       - name: Install dependencies
         run: mix deps.get
 

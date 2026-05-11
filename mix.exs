@@ -55,11 +55,22 @@ defmodule EventBus.MixProject do
   defp deps do
     [
       {:oban, "~> 2.19"},
-      {:oban_pro, "~> 1.5", repo: "oban", only: [:dev, :test_pro]},
       {:nimble_ownership, "~> 1.0"},
       {:postgrex, "~> 0.17", optional: true},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
-    ]
+    ] ++ pro_deps()
+  end
+
+  # oban_pro lives in Oban's private repo (requires a commercial license).
+  # We only declare it in envs where it's actually used — that way `mix
+  # deps.get` in :test (and in consumer projects without Pro) never tries
+  # to resolve it against the private repo.
+  defp pro_deps do
+    if Mix.env() in [:dev, :test_pro] do
+      [{:oban_pro, "~> 1.5", repo: "oban"}]
+    else
+      []
+    end
   end
 
   defp aliases do
